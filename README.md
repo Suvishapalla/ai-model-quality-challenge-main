@@ -121,3 +121,8 @@ The dashboard analyzes:
 * Some profiles may contain only one batch row.
 * All parsing happens in the browser.
 * No backend services are used.
+
+
+## Task 2 — Evalscope Fork
+https://github.com/Suvishapalla/evalscope
+Developed against commit: 7042e59c54637788a18a0642e86bd59608c4bd4d
