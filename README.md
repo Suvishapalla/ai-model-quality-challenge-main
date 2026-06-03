@@ -1,6 +1,6 @@
 # Task 1 — Performance Dashboard UI
 
-Live Demo: ai-model-quality-challenge-main-azure.vercel.app
+Live Demo: [ai-model-quality-challenge-main-azure.vercel.app](https://ai-model-quality-challenge-main-azure.vercel.app/)
 
 ## Overview
 
