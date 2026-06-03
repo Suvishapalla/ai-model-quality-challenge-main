@@ -1,49 +1,123 @@
-# Task 1 UI — Install & Run
+# Task 1 — Performance Dashboard UI
 
-This repository contains a client-side React + TypeScript app for Task 1 (source under `src/`). The UI lets a reviewer upload one or more `.xlsx` perf sweep files (parsed in-browser) and view:
+Live Demo: ai-model-quality-challenge-main-azure.vercel.app
 
-- **Customer View:** go / caution / no-go recommendations, ranked models, and comparison charts.
-- **Engineer View:** schema validation warnings, anomalies, raw normalized data, and diagnostic charts.
+## Overview
 
-Quick start (from project root):
+This project converts Cerebras-style `.xlsx` performance sweep files into a visual dashboard for:
 
-1. Install dependencies (Node 18+ recommended):
+* Customers / Product Managers
+* Internal Engineers
+
+Users can upload one or more `.xlsx` files and compare model performance across workloads.
+
+---
+
+## Features
+
+### Customer View
+
+* GO / CAUTION / NO-GO recommendations
+* Best model recommendations
+* Workload labels
+* Simple visual charts
+* Recommendation reasoning
+
+### Engineer View
+
+* Throughput charts
+* TTFT charts
+* RPM comparison
+* Cached vs uncached throughput
+* Same-profile model comparison
+* Risk and stability indicators
+* Normalized CSV export
+
+---
+
+## Important Note
+
+Profiles represent workload scenarios.
+
+Correct comparison:
+
+* Model A profile 1 vs Model B profile 1
+
+Incorrect comparison:
+
+* Model A profile 1 vs Model A profile 7
+
+Different profiles represent different workloads.
+
+---
+
+## Tech Stack
+
+* React
+* TypeScript
+* Vite
+* Recharts
+* SheetJS (`xlsx`)
+
+---
+
+## Run Locally
+
+Install dependencies:
 
 ```bash
-cd /path/to/repo
 npm install
 ```
 
-2. Run the dev server (Vite):
+Start development server:
 
 ```bash
 npm run dev
 ```
 
-3. Open the UI at `http://localhost:5173`.
+Open:
 
-Build for production:
+```text
+http://localhost:5173
+```
+
+---
+
+## Build
 
 ```bash
 npm run build
 ```
 
-Deploy to Vercel (recommended free):
+---
 
-1. Create a Vercel project and link this repository.
-2. Ensure the project root (where `package.json` lives) is selected.
-3. Vercel will run `npm run build` and deploy the static output.
+## Deployment
 
-Notes & assumptions
-- The app parses the `Summary` sheet in each `.xlsx`, or the first sheet if `Summary` doesn't exist.
-- Column names are resolved heuristically (case-insensitive) to the expected contract: Input Length, Output Length, Cache %, Batch Size, Throughput (t/s), Uncached/Cached Throughput (t/s), TTFT (ms), Gen Speed (t/s/user), RPM.
-- Model and profile are detected from filenames such as `Model_A_profile_1.xlsx`, `Model A profile 1.xlsx`, or `Model L profile 7.xlsx`. New models (e.g., Model L) are supported dynamically — no code changes required.
-- All parsing and scoring happen in-browser; this is a purely client-side app with no backend.
+Deployed using Vercel.
 
-Required packages (add via `npm install`):
-- `xlsx` — parse Excel files in-browser
-- `recharts` — charts
+The app is fully client-side and requires no backend.
 
-If you'd like I can also:
-- Add a minimal `package.json` and Vite config in the repo root if missing.
-- Deploy a demo to Vercel and paste the public URL into this README.
+---
+
+## Supported Metrics
+
+The dashboard analyzes:
+
+* Throughput
+* Cached Throughput
+* Uncached Throughput
+* TTFT
+* RPM
+* Batch Size
+* Cache Percentage
+* Input Length
+* Output Length
+
+---
+
+## Assumptions
+
+* Profiles represent workload types.
+* Some profiles may contain only one batch row.
+* All parsing happens in the browser.
+* No backend services are used.

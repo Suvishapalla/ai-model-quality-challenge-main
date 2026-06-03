@@ -15,38 +15,59 @@ function downloadJSON(filename: string, data: any) {
 	URL.revokeObjectURL(url);
 }
 
-function downloadCSV(filename: string, rows: any[], meta?: Record<string, any>) {
-	if (!rows || rows.length === 0) return;
-	// build flat rows merging metadata and normalized fields; exclude nested `__orig`
-	const flatRows = rows.map((r) => {
-		const out: Record<string, any> = {};
-		if (meta) {
-			for (const k of Object.keys(meta)) out[k] = meta[k];
-		}
-		for (const k of Object.keys(r)) {
-			if (k === '__orig') continue;
-			const v = r[k];
-			out[k] = (v !== null && typeof v === 'object') ? JSON.stringify(v) : v;
-		}
-		return out;
-	});
-	const keys = Array.from(new Set(flatRows.flatMap((r) => Object.keys(r))));
-	const csvLines = [keys.join(',')];
-	for (const r of flatRows) {
-		csvLines.push(keys.map((k) => {
-			const val = r[k];
-			if (val === null || val === undefined) return '';
-			if (typeof val === 'string') return `"${val.replace(/"/g, '""')}`;
-			return String(val);
-		}).join(','));
-	}
-	const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' });
-	const url = URL.createObjectURL(blob);
-	const a = document.createElement('a');
-	a.href = url;
-	a.download = filename;
-	a.click();
-	URL.revokeObjectURL(url);
+function escapeCsvValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+
+  const stringValue = String(value);
+
+  if (
+    stringValue.includes(",") ||
+    stringValue.includes('"') ||
+    stringValue.includes("\n")
+  ) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+
+  return stringValue;
+}
+
+function downloadCSV(filename: string, rows: any[], meta?: Record<string, unknown>) {
+  if (!rows || rows.length === 0) return;
+
+  const flatRows = rows.map((r) => {
+    const out: Record<string, unknown> = {};
+
+    if (meta) {
+      for (const k of Object.keys(meta)) out[k] = meta[k];
+    }
+
+    for (const k of Object.keys(r)) {
+      if (k === "__orig") continue;
+      const v = r[k];
+      out[k] = v !== null && typeof v === "object" ? JSON.stringify(v) : v;
+    }
+
+    return out;
+  });
+
+  const keys = Array.from(new Set(flatRows.flatMap((r) => Object.keys(r))));
+
+  const csvLines = [
+    keys.map(escapeCsvValue).join(","),
+    ...flatRows.map((row) =>
+      keys.map((key) => escapeCsvValue(row[key])).join(",")
+    ),
+  ];
+
+  const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+
+  a.href = url;
+  a.download = filename;
+  a.click();
+
+  URL.revokeObjectURL(url);
 }
 
 interface Props {
