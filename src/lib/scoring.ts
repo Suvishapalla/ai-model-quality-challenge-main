@@ -139,11 +139,15 @@ export function scoreModel(target: ParsedFile, all: ParsedFile[], options: Score
 	const genScore = bestGen > 0 ? clamp01(g / bestGen) : 0;
 
 	// TTFT contribution (20%) - lower better
-	const tt = targetAgg.medianTTFT;
-	// TTFT is lower-better; to avoid divide-by-zero, guard bestTTFT
-	const safeBestTTFT = bestTTFT === 0 ? Number.EPSILON : bestTTFT;
-	const ttftScore = tt == null || !isFinite(safeBestTTFT) ? 0 : clamp01(safeBestTTFT / tt);
-	if (tt == null) reasons.push('Missing TTFT data, reduces confidence.');
+    const tt = targetAgg.medianTTFT;
+    let ttftScore = 0;
+    if (bestTTFT === 0 || bestTTFT == null) {
+    reasons.push('TTFT baseline is zero or unavailable — TTFT scoring skipped.');
+    } else if (tt == null) {
+    reasons.push('Missing TTFT data — TTFT scoring skipped.');
+    } else {
+    ttftScore = clamp01(bestTTFT / tt);
+    }
 
 	// Stability bonus: use throughputVariance if available
 	const throughputs = target.rows.map((r) => r.Throughput).filter((v) => v != null) as number[];

@@ -54,6 +54,11 @@ export const RecommendationCards: React.FC<Props> = ({ score, onWhy, file, anoma
 						if (score.metrics?.throughput) parts.push(`Throughput: ${formatNumberCompact(score.metrics.throughput)} t/s`);
 						if (score.metrics?.ttft != null) parts.push(`TTFT: ${formatNumber(score.metrics.ttft, 1)} ms`);
 						if (score.metrics?.rpm) parts.push(`RPM: ${formatNumber(score.metrics.rpm, 1)}`);
+                        if (score.metrics?.throughput) {
+                            const tokensPerSecond = score.metrics.throughput;
+                            const costPer1MTokens = (1_000_000 / tokensPerSecond).toFixed(4);
+                            parts.push(`Est. cost proxy: ${costPer1MTokens}s of compute per 1M tokens`);
+                            }
 						return parts.join(' — ');
 					})()
 				}</div>
