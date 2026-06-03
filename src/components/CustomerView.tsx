@@ -2,6 +2,7 @@ import React from 'react';
 import { ParsedFile, ScoreResult, Anomaly } from '../types';
 import RecommendationCards from './RecommendationCards';
 import MetricCharts from './MetricCharts';
+import ExecutiveInsights from './ExecutiveInsights';
 import compareFilesByProfile from '../lib/compare';
 import { formatNumberCompact } from '../utils/format';
 import { aggregateModel } from '../lib/normalize';
@@ -31,7 +32,9 @@ const CustomerView: React.FC<Props> = ({ files, scores, onWhy, anomaliesMap }) =
 
   return (
     <div>
-      <h2>Recommendation</h2>
+      <ExecutiveInsights files={files} scores={scores} anomaliesMap={anomaliesMap} />
+
+      <h2>Recommendations</h2>
       {benchmarkText && (
         <div style={{ padding: 8, background: '#eef6ff', border: '1px solid #d0e6ff', borderRadius: 6, marginBottom: 12 }}>{benchmarkText}</div>
       )}
@@ -65,13 +68,12 @@ const CustomerView: React.FC<Props> = ({ files, scores, onWhy, anomaliesMap }) =
                 <div>Best stability: <strong>{comp.bestStability ?? '—'}</strong></div>
               </div>
             </div>
-
-            <div style={{ marginTop: 8 }}>
-              <MetricCharts files={files.filter((f) => f.profile === comp.profile)} anomaliesMap={anomaliesMap} scores={scores} />
-            </div>
           </div>
         );
       })}
+
+      <h3>Charts</h3>
+      <MetricCharts files={files} anomaliesMap={anomaliesMap} scores={scores} />
     </div>
   );
 };

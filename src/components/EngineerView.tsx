@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ParsedFile, Anomaly } from '../types';
 import RawDataTable from './RawDataTable';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { aggregateModel } from '../lib/normalize';
 import { formatNumber, formatNumberCompact, sanitizeFileName, formatYAxisTick } from '../utils/format';
 
@@ -70,6 +70,144 @@ function downloadCSV(filename: string, rows: any[], meta?: Record<string, unknow
   URL.revokeObjectURL(url);
 }
 
+const MODEL_COLORS = [
+	'#2563eb',
+	'#16a34a',
+	'#dc2626',
+	'#9333ea',
+	'#ea580c',
+	'#0891b2',
+	'#ca8a04',
+	'#db2777',
+	'#4f46e5',
+	'#059669',
+	'#b91c1c',
+	'#7c3aed',
+	'#0f766e',
+	'#475569',
+];
+
+type ModelSeries = {
+	key: string;
+	label: string;
+	profile: string;
+	color: string;
+	file: ParsedFile;
+};
+
+function buildSeries(files: ParsedFile[]): ModelSeries[] {
+	return files.map((file, index) => ({
+		key: `model_${index}`,
+		label: `${file.model || file.fileName} — ${file.profile || 'profile'}`,
+		profile: file.profile || 'profile_unknown',
+		color: MODEL_COLORS[index % MODEL_COLORS.length],
+		file,
+	}));
+}
+
+function shortModelProfileLabel(file: ParsedFile) {
+	const model = (file.model || file.fileName || '').toString();
+	const modelMatch = model.match(/Model\s*([A-Za-z0-9_-]+)/i);
+	const modelShort = modelMatch?.[1] || model.replace(/^model[_\s-]*/i, '').slice(0, 8) || 'model';
+	const profileMatch = (file.profile || '').toString().match(/(\d+)/);
+	return profileMatch ? `${modelShort}-p${profileMatch[1]}` : modelShort;
+}
+
+function hasMultipleBatchData(file: ParsedFile) {
+	const batches = new Set(
+		(file.rows || [])
+			.filter((row) => row.BatchSize != null && row.Throughput != null)
+			.map((row) => row.BatchSize)
+	);
+	return batches.size > 1;
+}
+
+function buildMetricData(series: ModelSeries[], metric: 'Throughput' | 'TTFT', positiveOnly = false) {
+	const rowsByBatch = new Map<number, Record<string, number | null>>();
+
+	for (const model of series) {
+		for (const row of model.file.rows || []) {
+			const batch = row.BatchSize ?? null;
+			const value = row[metric] ?? null;
+			if (batch == null || value == null || (positiveOnly && value <= 0)) continue;
+			if (!rowsByBatch.has(batch)) rowsByBatch.set(batch, { batch });
+			rowsByBatch.get(batch)![model.key] = value;
+		}
+	}
+
+	return Array.from(rowsByBatch.values()).sort((a, b) => Number(a.batch) - Number(b.batch));
+}
+
+function buildCachedData(series: ModelSeries[]) {
+	const rowsByBatch = new Map<number, Record<string, number | null>>();
+
+	for (const model of series) {
+		for (const row of model.file.rows || []) {
+			const batch = row.BatchSize ?? null;
+			if (batch == null) continue;
+			if (!rowsByBatch.has(batch)) rowsByBatch.set(batch, { batch });
+			const dataRow = rowsByBatch.get(batch)!;
+			if (row.CachedThroughput != null) dataRow[`${model.key}_cached`] = row.CachedThroughput;
+			if (row.UncachedThroughput != null) dataRow[`${model.key}_uncached`] = row.UncachedThroughput;
+		}
+	}
+
+	return Array.from(rowsByBatch.values()).sort((a, b) => Number(a.batch) - Number(b.batch));
+}
+
+function DiagnosticsTooltip({ active, payload, label, valueFormatter }: any) {
+	if (!active || !payload || payload.length === 0) return null;
+	return (
+		<div style={{ background: '#fff', border: '1px solid #d8e3ef', borderRadius: 6, padding: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+			<div style={{ fontWeight: 700, marginBottom: 6 }}>Batch size: {label}</div>
+			{payload
+				.filter((entry: any) => entry.value != null)
+				.map((entry: any) => (
+					<div key={entry.dataKey} style={{ color: entry.color, fontSize: 13 }}>
+						{entry.name}: <strong>{valueFormatter(entry.value)}</strong>
+					</div>
+				))}
+		</div>
+	);
+}
+
+function ModelToggleLegend({
+	series,
+	hiddenModels,
+	onToggle,
+}: {
+	series: ModelSeries[];
+	hiddenModels: Set<string>;
+	onToggle: (key: string) => void;
+}) {
+	const grouped = series.reduce<Record<string, ModelSeries[]>>((acc, model) => {
+		if (!acc[model.profile]) acc[model.profile] = [];
+		acc[model.profile].push(model);
+		return acc;
+	}, {});
+
+	return (
+		<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, margin: '8px 0 12px' }}>
+			{Object.entries(grouped).map(([profile, models]) => (
+				<div key={profile} style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 8, background: '#fff' }}>
+					<div style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>{profile}</div>
+					{models.map((model) => (
+						<label key={model.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 4, cursor: 'pointer' }}>
+							<input
+								type="checkbox"
+								checked={!hiddenModels.has(model.key)}
+								onChange={() => onToggle(model.key)}
+							/>
+							<span style={{ width: 10, height: 10, borderRadius: 2, background: model.color, display: 'inline-block' }} />
+							<span>{model.label}</span>
+						</label>
+					))}
+				</div>
+			))}
+		</div>
+	);
+}
+
 interface Props {
 	files: ParsedFile[];
 	anomaliesMap: Map<string, Anomaly[]>;
@@ -81,9 +219,23 @@ export const EngineerView: React.FC<Props> = ({ files, anomaliesMap }) => {
 	const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
 
 	const [showGuide, setShowGuide] = useState<boolean>(false);
+	const [hiddenModels, setHiddenModels] = useState<Set<string>>(new Set());
 
 	const profiles = Array.from(new Set(files.map((f) => f.profile))).filter(Boolean);
 	if (!selectedProfile && profiles.length > 0) setSelectedProfile(profiles[0]);
+	const uploadedFileCount = files.length;
+	const diagnosticSeries = useMemo(() => buildSeries(files), [files]);
+	const throughputOverlayData = useMemo(() => buildMetricData(diagnosticSeries, 'Throughput'), [diagnosticSeries]);
+	const ttftOverlayData = useMemo(() => buildMetricData(diagnosticSeries, 'TTFT', true), [diagnosticSeries]);
+	const cachedOverlayData = useMemo(() => buildCachedData(diagnosticSeries), [diagnosticSeries]);
+	const toggleModel = (key: string) => {
+		setHiddenModels((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) next.delete(key);
+			else next.add(key);
+			return next;
+		});
+	};
 
 	return (
 		<div>
@@ -107,10 +259,10 @@ export const EngineerView: React.FC<Props> = ({ files, anomaliesMap }) => {
 						<div style={{ background: '#fff', padding: 8 }}>
 							<strong>Throughput (peak)</strong>
 							<ResponsiveContainer width="100%" height={160}>
-								<LineChart data={files.filter(f=>f.profile===selectedProfile).map(f => ({ name: f.fileName, throughput: (aggregateModel(f.rows as any).maxThroughput ?? 0) }))}>
-									<XAxis dataKey="name" interval={0} tick={{ fontSize: 11 }} height={48} />
+								<LineChart data={files.filter(f=>f.profile===selectedProfile).map(f => ({ name: f.fileName, shortName: shortModelProfileLabel(f), throughput: (aggregateModel(f.rows as any).maxThroughput ?? 0) }))}>
+									<XAxis dataKey="shortName" interval={0} angle={-45} textAnchor="end" tick={{ fontSize: 11 }} height={64} />
 									<YAxis tickFormatter={(v) => formatYAxisTick(v as number)} />
-									<Tooltip />
+									<Tooltip labelFormatter={(label, payload) => payload?.[0]?.payload?.name ?? label} />
 									<Line type="monotone" dataKey="throughput" stroke="#8884d8" />
 								</LineChart>
 							</ResponsiveContainer>
@@ -118,10 +270,10 @@ export const EngineerView: React.FC<Props> = ({ files, anomaliesMap }) => {
 						<div style={{ background: '#fff', padding: 8 }}>
 							<strong>TTFT (median)</strong>
 							<ResponsiveContainer width="100%" height={160}>
-								<LineChart data={files.filter(f=>f.profile===selectedProfile).map(f => ({ name: f.fileName, ttft: (aggregateModel(f.rows as any).medianTTFT ?? null) }))}>
-									<XAxis dataKey="name" interval={0} tick={{ fontSize: 11 }} height={48} />
+								<LineChart data={files.filter(f=>f.profile===selectedProfile).map(f => ({ name: f.fileName, shortName: shortModelProfileLabel(f), ttft: (aggregateModel(f.rows as any).medianTTFT ?? null) }))}>
+									<XAxis dataKey="shortName" interval={0} angle={-45} textAnchor="end" tick={{ fontSize: 11 }} height={64} />
 									<YAxis tickFormatter={(v) => formatYAxisTick(v as number)} />
-									<Tooltip />
+									<Tooltip labelFormatter={(label, payload) => payload?.[0]?.payload?.name ?? label} />
 									<Line type="monotone" dataKey="ttft" stroke="#82ca9d" />
 								</LineChart>
 							</ResponsiveContainer>
@@ -146,7 +298,7 @@ export const EngineerView: React.FC<Props> = ({ files, anomaliesMap }) => {
 								if (t > bestThroughput) { bestThroughput = t; bestT = f.fileName; }
 								if (lat < bestTTFT) { bestTTFT = lat; bestLat = f.fileName; }
 								if (r > bestRPM) { bestRPM = r; bestR = f.fileName; }
-								if (stability > bestStability) { bestStability = stability; bestS = f.fileName; }
+								if (hasMultipleBatchData(f) && stability > bestStability) { bestStability = stability; bestS = f.fileName; }
 							}
 							return (
 								<div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
@@ -169,7 +321,7 @@ export const EngineerView: React.FC<Props> = ({ files, anomaliesMap }) => {
 				const warnCount = allAnomalies.filter((a) => a.severity === 'warning').length;
 				return (
 					<div style={{ marginBottom: 8 }}>
-						<span style={{ marginRight: 12 }}>Files: <strong>{files.length}</strong></span>
+						<span style={{ marginRight: 12 }}>Files: <strong>{uploadedFileCount}</strong></span>
 						<span style={{ marginRight: 12 }}>Errors: <strong style={{ color: errorCount ? 'red' : undefined }}>{errorCount}</strong></span>
 						<span>Warnings: <strong style={{ color: warnCount ? '#b85' : undefined }}>{warnCount}</strong></span>
 					</div>
@@ -221,7 +373,11 @@ export const EngineerView: React.FC<Props> = ({ files, anomaliesMap }) => {
 								<div>Avg RPM: {formatNumber(agg.avgRPM as any, 1)}</div>
 								<div>Gen speed (avg): {formatNumber(agg.avgGen as any, 2)} t/s/user</div>
 								<div>Avg throughput: {formatNumberCompact(agg.throughputMean as any)}</div>
-								<div>Stability score: <strong style={{ color: (agg.stabilityScore ?? 0) >= 0.8 ? 'green' : (agg.stabilityScore ?? 0) >= 0.5 ? '#f5a623' : 'red' }}>{agg.stabilityScore != null ? formatNumber(agg.stabilityScore as any, 2) : '—'}</strong></div>
+								<div>
+									Stability score{' '}
+									<span title="Consistency of throughput across batch sizes. Higher = more predictable." style={{ cursor: 'help', color: '#64748b' }}>ⓘ</span>
+									: <strong style={{ color: (agg.stabilityScore ?? 0) >= 0.8 ? 'green' : (agg.stabilityScore ?? 0) >= 0.5 ? '#f5a623' : 'red' }}>{agg.stabilityScore != null ? formatNumber(agg.stabilityScore as any, 2) : '—'}</strong>
+								</div>
 								<div>Confidence: {((f.rows as any)[0]?.confidenceScore == null) ? '—' : `${formatNumber(((f.rows as any)[0]?.confidenceScore ?? 0) * 100, 1)}%`}</div>
 								<div>Risk level: <strong style={{ color: (f.rows as any)[0]?.riskLevel === 'high' ? 'red' : (f.rows as any)[0]?.riskLevel === 'medium' ? '#f5a623' : 'green' }}>{(f.rows as any)[0]?.riskLevel ?? 'low'}</strong></div>
 								{agg.saturationFlag ? <div style={{ color: 'red' }}>⚠ Saturation detected — model may be hitting performance limits</div> : null}
@@ -251,64 +407,97 @@ export const EngineerView: React.FC<Props> = ({ files, anomaliesMap }) => {
 			</div>
 
 			<h3>Batch size vs Throughput (per file)</h3>
-			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-				{files.map((f) => {
-					const data = (f.rows || []).map((r: any) => ({ batch: r.BatchSize ?? 0, throughput: r.Throughput ?? null })).filter((d: any) => d.batch != null);
-					return (
-						<div key={f.id ?? f.fileName} style={{ background: '#fff', padding: 8 }}>
-							<div style={{ fontSize: 13, fontWeight: 600 }}>{f.fileName}</div>
-							<ResponsiveContainer width="100%" height={120}>
-								<LineChart data={data}>
-									<XAxis dataKey="batch" />
-									<YAxis tickFormatter={(v) => formatNumberCompact(v as number)} />
-									<Tooltip formatter={(v:any) => formatNumber(v as number, 2)} />
-									<Line type="monotone" dataKey="throughput" stroke="#8884d8" dot={false} />
-								</LineChart>
-							</ResponsiveContainer>
-						</div>
-					);
-				})}
+			<ModelToggleLegend series={diagnosticSeries} hiddenModels={hiddenModels} onToggle={toggleModel} />
+			<div style={{ background: '#fff', padding: 8, border: '1px solid #eee', borderRadius: 6 }}>
+				<ResponsiveContainer width="100%" height={340}>
+					<LineChart data={throughputOverlayData}>
+						<XAxis dataKey="batch" />
+						<YAxis tickFormatter={(v) => formatNumberCompact(v as number)} />
+						<Tooltip content={<DiagnosticsTooltip valueFormatter={(v: number) => `${formatNumber(v, 2)} t/s`} />} />
+						<Legend />
+						{diagnosticSeries.map((model) => (
+							<Line
+								key={model.key}
+								type="monotone"
+								dataKey={model.key}
+								name={model.label}
+								stroke={model.color}
+								strokeWidth={2}
+								dot={false}
+								hide={hiddenModels.has(model.key)}
+								connectNulls
+							/>
+						))}
+					</LineChart>
+				</ResponsiveContainer>
 			</div>
 
 			<h3>Batch size vs TTFT (per file)</h3>
-			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-				{files.map((f) => {
-					const data = (f.rows || []).map((r: any) => ({ batch: r.BatchSize ?? 0, ttft: r.TTFT ?? null })).filter((d: any) => d.batch != null);
-					return (
-						<div key={f.id ?? f.fileName} style={{ background: '#fff', padding: 8 }}>
-							<div style={{ fontSize: 13, fontWeight: 600 }}>{f.fileName}</div>
-							<ResponsiveContainer width="100%" height={120}>
-								<LineChart data={data}>
-									<XAxis dataKey="batch" />
-									<YAxis tickFormatter={(v) => formatNumber(v as number, 1)} />
-									<Tooltip formatter={(v:any) => formatNumber(v as number, 1)} />
-									<Line type="monotone" dataKey="ttft" stroke="#82ca9d" dot={false} />
-								</LineChart>
-							</ResponsiveContainer>
-						</div>
-					);
-				})}
+			<div style={{ background: '#fff', padding: 8, border: '1px solid #eee', borderRadius: 6 }}>
+				<div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
+					Log scale keeps lower-latency profiles readable when another profile has much larger TTFT values.
+				</div>
+				<ResponsiveContainer width="100%" height={340}>
+					<LineChart data={ttftOverlayData}>
+						<XAxis dataKey="batch" />
+						<YAxis scale="log" domain={['auto', 'auto']} tickFormatter={(v) => formatNumber(v as number, 1)} />
+						<Tooltip content={<DiagnosticsTooltip valueFormatter={(v: number) => `${formatNumber(v, 1)} ms`} />} />
+						<Legend />
+						{diagnosticSeries.map((model) => (
+							<Line
+								key={model.key}
+								type="monotone"
+								dataKey={model.key}
+								name={model.label}
+								stroke={model.color}
+								strokeWidth={2}
+								dot={false}
+								hide={hiddenModels.has(model.key)}
+								connectNulls
+							/>
+						))}
+					</LineChart>
+				</ResponsiveContainer>
 			</div>
 
 			<h3>Cached vs Uncached Throughput (per file)</h3>
-			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-				{files.map((f) => {
-					const data = (f.rows || []).map((r: any) => ({ batch: r.BatchSize ?? 0, cached: r.CachedThroughput ?? null, uncached: r.UncachedThroughput ?? null })).filter((d: any) => d.batch != null || d.cached != null || d.uncached != null);
-					return (
-						<div key={f.id ?? f.fileName} style={{ background: '#fff', padding: 8 }}>
-							<div style={{ fontSize: 13, fontWeight: 600 }}>{f.fileName}</div>
-							<ResponsiveContainer width="100%" height={120}>
-								<BarChart data={data}>
-									<XAxis dataKey="batch" />
-									<YAxis tickFormatter={(v) => formatNumberCompact(v as number)} />
-									<Tooltip formatter={(v:any) => formatNumberCompact(v as number)} />
-									<Bar dataKey="cached" fill="#8884d8" />
-									<Bar dataKey="uncached" fill="#ff7300" />
-								</BarChart>
-							</ResponsiveContainer>
-						</div>
-					);
-				})}
+			<div style={{ background: '#fff', padding: 8, border: '1px solid #eee', borderRadius: 6 }}>
+				<div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
+					Solid lines show cached throughput. Dashed lines show uncached throughput.
+				</div>
+				<ResponsiveContainer width="100%" height={360}>
+					<LineChart data={cachedOverlayData}>
+						<XAxis dataKey="batch" />
+						<YAxis tickFormatter={(v) => formatNumberCompact(v as number)} />
+						<Tooltip content={<DiagnosticsTooltip valueFormatter={(v: number) => `${formatNumberCompact(v)} t/s`} />} />
+						<Legend />
+						{diagnosticSeries.map((model) => (
+							<React.Fragment key={model.key}>
+								<Line
+									type="monotone"
+									dataKey={`${model.key}_cached`}
+									name={`${model.label} cached`}
+									stroke={model.color}
+									strokeWidth={2}
+									dot={false}
+									hide={hiddenModels.has(model.key)}
+									connectNulls
+								/>
+								<Line
+									type="monotone"
+									dataKey={`${model.key}_uncached`}
+									name={`${model.label} uncached`}
+									stroke={model.color}
+									strokeWidth={2}
+									strokeDasharray="5 4"
+									dot={false}
+									hide={hiddenModels.has(model.key)}
+									connectNulls
+								/>
+							</React.Fragment>
+						))}
+					</LineChart>
+				</ResponsiveContainer>
 			</div>
 
 			<div style={{ marginTop: 16, padding: 12, background: '#fafafa', borderRadius: 6 }}>

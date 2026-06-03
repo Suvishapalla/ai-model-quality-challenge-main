@@ -4,7 +4,7 @@ import CustomerView from './components/CustomerView';
 import EngineerView from './components/EngineerView';
 import EvidencePanel from './components/EvidencePanel';
 import { ParsedFile, Anomaly } from './types';
-import { scoreAllWithMode, ScoringMode } from './lib/scoring';
+import { scoreAllWithMode, scoreModel, ScoringMode } from './lib/scoring';
 import { detectAll } from './lib/anomalies';
 import { DEFAULT_PERFORMANCE_FILE_NAMES, loadDefaultPerformanceFiles } from './lib/defaultPerformanceData';
 
@@ -129,7 +129,7 @@ export const App: React.FC = () => {
 
   // Compare a single file against the global set explicitly (used by UI action 'Compare globally')
   const compareGlobally = (file: ParsedFile) => {
-    const result = (require('./lib/scoring') as any).scoreModel(file, files, { mode: scoringMode, allowGlobalFallback: true });
+    const result = scoreModel(file, files, { mode: scoringMode, allowGlobalFallback: true });
     setScores((prev) => prev.map((s) => ({ ...s, result: s.file.id === file.id || s.file.fileName === file.fileName ? result : s.result })));
   };
   // expose for simple wiring from child components that don't receive props

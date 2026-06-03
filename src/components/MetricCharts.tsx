@@ -62,7 +62,7 @@ export const MetricCharts: React.FC<Props> = ({ files, anomaliesMap, scores }) =
 					</div>
 					<ResponsiveContainer width="100%" height={160}>
 							<BarChart data={summary}>
-								<XAxis dataKey="shortName" interval={0} tick={{ fontSize: 11 }} height={48} />
+								<XAxis dataKey="shortName" interval={0} angle={-45} textAnchor="end" tick={{ fontSize: 11 }} height={64} />
 								<YAxis tickFormatter={(v) => formatNumberCompact(v as number)} />
 								<Tooltip formatter={(value: any) => typeof value === 'number' ? formatNumber(value as number, 2) : value} labelFormatter={(label) => {
 									const s = summary.find((x) => x.shortName === label);
@@ -92,7 +92,7 @@ export const MetricCharts: React.FC<Props> = ({ files, anomaliesMap, scores }) =
 					</div>
 					<ResponsiveContainer width="100%" height={160}>
 							<BarChart data={summary}>
-								<XAxis dataKey="shortName" interval={0} tick={{ fontSize: 11 }} height={48} />
+								<XAxis dataKey="shortName" interval={0} angle={-45} textAnchor="end" tick={{ fontSize: 11 }} height={64} />
 								<YAxis tickFormatter={(v) => formatNumber(v as number, 1)} />
 								<Tooltip formatter={(value: any) => typeof value === 'number' ? formatNumber(value as number, 1) : value} labelFormatter={(label) => {
 									const s = summary.find((x) => x.shortName === label);
@@ -122,7 +122,7 @@ export const MetricCharts: React.FC<Props> = ({ files, anomaliesMap, scores }) =
 					</div>
 					<ResponsiveContainer width="100%" height={160}>
 							<BarChart data={summary}>
-								<XAxis dataKey="shortName" interval={0} tick={{ fontSize: 11 }} height={48} />
+								<XAxis dataKey="shortName" interval={0} angle={-45} textAnchor="end" tick={{ fontSize: 11 }} height={64} />
 								<YAxis tickFormatter={(v) => formatNumberCompact(v as number)} />
 								<Tooltip formatter={(value: any) => typeof value === 'number' ? formatNumber(value as number, 1) : value} labelFormatter={(label) => {
 									const s = summary.find((x) => x.shortName === label);
@@ -152,7 +152,7 @@ export const MetricCharts: React.FC<Props> = ({ files, anomaliesMap, scores }) =
 					</div>
 					<ResponsiveContainer width="100%" height={160}>
 							<BarChart data={summary}>
-								<XAxis dataKey="shortName" interval={0} tick={{ fontSize: 11 }} height={48} />
+								<XAxis dataKey="shortName" interval={0} angle={-45} textAnchor="end" tick={{ fontSize: 11 }} height={64} />
 								<YAxis tickFormatter={(v) => formatNumber(v as number, 2)} />
 								<Tooltip formatter={(value: any) => typeof value === 'number' ? formatNumber(value as number, 2) : value} labelFormatter={(label) => {
 									const s = summary.find((x) => x.shortName === label);
