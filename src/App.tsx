@@ -186,10 +186,10 @@ export const App: React.FC = () => {
       <main style={{ marginTop: 12 }}>
         <div style={{ padding: 8, marginBottom: 8, background: '#f7fbff', border: '1px solid #d8ebff', borderRadius: 6 }}>
           {defaultDataLoading
-            ? `Loading ${DEFAULT_PERFORMANCE_FILE_NAMES.length} default performance models...`
+            ? `Loading ${DEFAULT_PERFORMANCE_FILE_NAMES.length} default model profiles...`
             : defaultDataError
               ? `Default performance data could not be loaded: ${defaultDataError}`
-              : `${DEFAULT_PERFORMANCE_FILE_NAMES.length} default performance models are loaded. Upload more .xlsx files to add additional models or profiles.`}
+              : `${DEFAULT_PERFORMANCE_FILE_NAMES.length} default model profiles are loaded. Upload more .xlsx files to add additional models or profiles.`}
         </div>
         <FileUploader onUpload={handleUpload} />
 

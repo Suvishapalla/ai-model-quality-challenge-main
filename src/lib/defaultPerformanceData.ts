@@ -2,19 +2,12 @@ import { ParsedFile } from '../types';
 import { parseExcelFile, detectModelAndProfile } from './parseExcel';
 import { normalizeRows, guessWorkloadLabel } from './normalize';
 
-export const DEFAULT_PERFORMANCE_FILE_NAMES = [
-	'Model A profile 1.xlsx',
-	'Model B profile 1.xlsx',
-	'Model C profile 1.xlsx',
-	'Model D profile 1.xlsx',
-	'Model E profile 1.xlsx',
-	'Model F profile 1.xlsx',
-	'Model G profile 1.xlsx',
-	'Model H profile 1.xlsx',
-	'Model I profile 1.xlsx',
-	'Model J profile 1.xlsx',
-	'Model K profile 1.xlsx',
-];
+const DEFAULT_MODEL_NAMES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
+const DEFAULT_PROFILE_NUMBERS = [1, 2, 3, 4, 5, 6, 7];
+
+export const DEFAULT_PERFORMANCE_FILE_NAMES = DEFAULT_MODEL_NAMES.flatMap((modelName) =>
+	DEFAULT_PROFILE_NUMBERS.map((profileNumber) => `Model ${modelName} profile ${profileNumber}.xlsx`)
+);
 
 function defaultFileUrl(fileName: string) {
 	return `/default-perf-data/${encodeURIComponent(fileName)}`;
