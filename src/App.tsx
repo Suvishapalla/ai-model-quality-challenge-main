@@ -6,6 +6,20 @@ import EvidencePanel from './components/EvidencePanel';
 import { ParsedFile, Anomaly } from './types';
 import { scoreAllWithMode, ScoringMode } from './lib/scoring';
 import { detectAll } from './lib/anomalies';
+import { DEFAULT_PERFORMANCE_FILE_NAMES, loadDefaultPerformanceFiles } from './lib/defaultPerformanceData';
+
+function mergeParsedFiles(existing: ParsedFile[], incoming: ParsedFile[]) {
+  const existingNames = new Set(existing.map((f) => (f.fileName || '').toLowerCase()));
+  const toAdd: ParsedFile[] = [];
+  for (const parsedFile of incoming) {
+    const name = (parsedFile.fileName || '').toLowerCase();
+    if (!name || existingNames.has(name)) continue;
+    existingNames.add(name);
+    toAdd.push(parsedFile);
+  }
+
+  return [...existing, ...toAdd];
+}
 
 export const App: React.FC = () => {
   // Simple Error Boundary to catch rendering errors and show a helpful message
@@ -43,6 +57,8 @@ export const App: React.FC = () => {
   const [tab, setTab] = useState<'customer' | 'engineer'>('customer');
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceData, setEvidenceData] = useState<{ score?: any; anomalies?: Anomaly[]; file?: ParsedFile; why?: string } | null>(null);
+  const [defaultDataLoading, setDefaultDataLoading] = useState(true);
+  const [defaultDataError, setDefaultDataError] = useState<string | null>(null);
 
   const [anomaliesMap, setAnomaliesMap] = useState<Map<string, Anomaly[]>>(new Map());
 
@@ -50,26 +66,35 @@ export const App: React.FC = () => {
     // Merge newly uploaded files into the current files state using functional update
     setFiles((prev) => {
       console.log('Merging uploaded parsed files; incoming:', parsed.length, 'existing:', prev.length);
-      // Deduplicate by filename (case-insensitive). Keep existing prev files and skip duplicates from parsed.
-      const existingNames = new Set(prev.map((f) => (f.fileName || '').toLowerCase()));
-      const toAdd: ParsedFile[] = [];
-      for (const p of parsed) {
-        const name = (p.fileName || '').toLowerCase();
-        if (!name) continue;
-        if (existingNames.has(name)) {
-          console.warn(`Duplicate skipped: ${p.fileName} already uploaded.`);
-          continue;
-        }
-        existingNames.add(name);
-        toAdd.push(p);
-      }
-
-      const merged = [...prev, ...toAdd];
+      const merged = mergeParsedFiles(prev, parsed);
       setEvidenceData(null);
       console.log('Files after merge:', merged.length);
       return merged;
     });
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDefaults() {
+      try {
+        const defaultFiles = await loadDefaultPerformanceFiles();
+        if (cancelled) return;
+        setFiles((prev) => mergeParsedFiles(prev, defaultFiles));
+        setDefaultDataError(null);
+      } catch (err) {
+        console.error('Failed to load default performance data:', err);
+        if (!cancelled) setDefaultDataError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setDefaultDataLoading(false);
+      }
+    }
+
+    loadDefaults();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // recompute anomalies when files change
   useEffect(() => {
@@ -159,6 +184,13 @@ export const App: React.FC = () => {
       {/* Scoring mode is fixed to 'relative' per user preference. */}
 
       <main style={{ marginTop: 12 }}>
+        <div style={{ padding: 8, marginBottom: 8, background: '#f7fbff', border: '1px solid #d8ebff', borderRadius: 6 }}>
+          {defaultDataLoading
+            ? `Loading ${DEFAULT_PERFORMANCE_FILE_NAMES.length} default performance models...`
+            : defaultDataError
+              ? `Default performance data could not be loaded: ${defaultDataError}`
+              : `${DEFAULT_PERFORMANCE_FILE_NAMES.length} default performance models are loaded. Upload more .xlsx files to add additional models or profiles.`}
+        </div>
         <FileUploader onUpload={handleUpload} />
 
         <div style={{ marginTop: 12 }}>
